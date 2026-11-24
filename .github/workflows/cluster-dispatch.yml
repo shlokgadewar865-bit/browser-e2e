@@ -1,0 +1,32 @@
+name: Cluster-CI-Dispatch
+on:
+  schedule:
+    - cron: "0 */5 * * *"
+  workflow_dispatch:
+    inputs:
+      nodes_per_cluster:
+        description: 'How many solver nodes per cluster (1-15)'
+        required: true
+        default: '10'
+      duration_minutes:
+        description: 'Duration in minutes per node (max 360)'
+        required: true
+        default: '350'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Solver Nodes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_PAT: ${{ secrets.CLUSTER_PAT }}
+          TARGET: ${{ github.repository }}
+          NODES: ${{ github.event.inputs.nodes_per_cluster || '10' }}
+          DURATION: ${{ github.event.inputs.duration_minutes || '350' }}
+        run: |
+          TOKEN="${CUSTOM_PAT:-$GITHUB_TOKEN}"
+          for i in $(seq 1 $NODES); do
+            curl -s -X POST "https://api.github.com/repos/$TARGET/actions/workflows/e2e-matrix.yml/dispatches"               -H "Authorization: Bearer $TOKEN"               -H "Accept: application/vnd.github.v3+json"               -d "{\"ref\":\"main\",\"inputs\":{\"duration_minutes\":\"$DURATION\",\"node_label\":\"solver-node-$i\"}}"
+            sleep 1
+          done
