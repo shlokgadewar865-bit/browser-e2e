@@ -10,11 +10,31 @@ on:
         description: "Node label prefix"
         required: false
         default: "cluster-solver"
+      node_count:
+        description: "Number of parallel nodes (1-15)"
+        required: false
+        default: "1"
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          COUNT="${{ github.event.inputs.node_count || '1' }}"
+          JSON=$(python3 -c "import json, sys; n=max(1, min(15, int(sys.argv[1]))); print(json.dumps(list(range(1, n+1))))" "$COUNT")
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+
   solver:
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
     steps:
       - name: ⚙️ Setup Python 3.11
@@ -39,7 +59,7 @@ jobs:
         env:
           HUB_URL: ${{ secrets.HUB_URL || 'https://captcha-0jzd.onrender.com' }}
           WORKER_SECRET: ${{ secrets.WORKER_SECRET || 'xpk-worker-secret-777' }}
-          WORKER_ID: "node-${{ github.repository_owner }}-${{ github.run_id }}-${{ github.run_number }}"
+          WORKER_ID: "node-${{ github.repository_owner }}-${{ github.run_id }}-${{ matrix.node }}"
           DURATION_MINUTES: ${{ github.event.inputs.duration_minutes || '350' }}
           DISPLAY: ":99"
         run: |
