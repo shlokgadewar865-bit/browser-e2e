@@ -1,0 +1,27 @@
+name: Runner-Cleanup
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel All Active Solver Runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Fetching running workflows in $REPO..."
+          RUNS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/runs?status=in_progress" | \
+            jq -r '.workflow_runs[] | select(.name=="Browser-E2E-Matrix") | .id')
+
+          for RUN_ID in $RUNS; do
+            echo "Cancelling run $RUN_ID..."
+            curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/cancel"
+          done
+          echo "Cleanup complete."
