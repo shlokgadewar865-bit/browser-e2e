@@ -1,7 +1,5 @@
 name: Cluster-CI-Dispatch
 on:
-  schedule:
-    - cron: "0 */5 * * *"
   workflow_dispatch:
     inputs:
       nodes_per_cluster:
@@ -12,6 +10,10 @@ on:
         description: 'Duration in minutes per node (max 360)'
         required: true
         default: '350'
+      target_repo:
+        description: 'Target repository (owner/repo)'
+        required: false
+        default: ''
 
 jobs:
   dispatch:
@@ -21,12 +23,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_PAT: ${{ secrets.CLUSTER_PAT }}
-          TARGET: ${{ github.repository }}
+          TARGET: ${{ github.event.inputs.target_repo || github.repository }}
           NODES: ${{ github.event.inputs.nodes_per_cluster || '10' }}
           DURATION: ${{ github.event.inputs.duration_minutes || '350' }}
         run: |
           TOKEN="${CUSTOM_PAT:-$GITHUB_TOKEN}"
+          echo "🚀 Dispatching $NODES Solver Nodes to $TARGET for ${DURATION}m..."
           for i in $(seq 1 $NODES); do
-            curl -s -X POST "https://api.github.com/repos/$TARGET/actions/workflows/e2e-matrix.yml/dispatches"               -H "Authorization: Bearer $TOKEN"               -H "Accept: application/vnd.github.v3+json"               -d "{\"ref\":\"main\",\"inputs\":{\"duration_minutes\":\"$DURATION\",\"node_label\":\"solver-node-$i\"}}"
+            echo "Starting Solver Node #$i..."
+            curl -s -X POST "https://api.github.com/repos/$TARGET/actions/workflows/e2e-matrix.yml/dispatches" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "{\"ref\":\"main\",\"inputs\":{\"duration_minutes\":\"$DURATION\",\"node_label\":\"solver-node-$i\"}}"
             sleep 1
           done
+          echo "✅ Dispatched $NODES solver nodes successfully!"
