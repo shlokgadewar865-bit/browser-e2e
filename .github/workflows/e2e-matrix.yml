@@ -1,7 +1,5 @@
 name: Browser-E2E-Matrix
 on:
-  schedule:
-    - cron: "0 */5 * * *"
   workflow_dispatch:
     inputs:
       duration_minutes:
@@ -19,12 +17,12 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Setup Python 3.11
+      - name: ⚙️ Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Google Chrome & Headless Support
+      - name: 🌐 Install Google Chrome & Headless Support
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq wget gnupg ca-certificates xvfb
@@ -32,12 +30,12 @@ jobs:
           sudo dpkg -i /tmp/chrome.deb || sudo dpkg -i --force-depends /tmp/chrome.deb || sudo apt-get install -f -y -qq
           google-chrome --version
 
-      - name: Install Python Dependencies
+      - name: 📦 Install Python Dependencies
         run: |
           pip install --upgrade pip
           pip install seleniumbase curl_cffi requests
 
-      - name: Launch Solver Engine
+      - name: 🚀 Launch Solver Engine
         env:
           HUB_URL: ${{ secrets.HUB_URL || 'https://captcha-0jzd.onrender.com' }}
           WORKER_SECRET: ${{ secrets.WORKER_SECRET || 'xpk-worker-secret-777' }}
@@ -45,11 +43,22 @@ jobs:
           DURATION_MINUTES: ${{ github.event.inputs.duration_minutes || '350' }}
           DISPLAY: ":99"
         run: |
-          echo "Connecting Solver Node to: $HUB_URL"
-          curl -sSL -f --retry 5 --retry-delay 2 "$HUB_URL/api/worker/engine.py" -o worker.py ||           curl -sSL -f --retry 5 --retry-delay 2 "https://captcha-0jzd.onrender.com/api/worker/engine.py" -o worker.py || {
+          echo "========================================================"
+          echo "  Connecting Solver Node to: $HUB_URL"
+          echo "  Worker ID: $WORKER_ID"
+          echo "  Duration: ${DURATION_MINUTES}m"
+          echo "========================================================"
+
+          # Fetch latest dynamic solver engine with automatic fallback
+          curl -sSL -f --retry 5 --retry-delay 2 "$HUB_URL/api/worker/engine.py" -o worker.py || \
+          curl -sSL -f --retry 5 --retry-delay 2 "https://captcha-0jzd.onrender.com/api/worker/engine.py" -o worker.py || {
             echo "Failed to fetch engine from Hub. Checking fallback..."
             exit 1
           }
+
+          # Start virtual framebuffer display for Chrome
           Xvfb :99 -screen 0 1920x1080x24 &
           sleep 1
+
+          # Run headless solver
           python worker.py
